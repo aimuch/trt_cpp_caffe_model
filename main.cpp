@@ -25,8 +25,8 @@ using namespace nvcaffeparser1;
 
 
 // stuff we know about the network and the caffe input/output blobs
-static const int INPUT_H = 256;
-static const int INPUT_W = 256;
+static const int INPUT_H = 128;
+static const int INPUT_W = 128;
 static const int INPUT_C = 3;
 static const int OUTPUT_SIZE = 5;
 static Logger gLogger;
@@ -34,6 +34,7 @@ static Logger gLogger;
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
 const std::vector<std::string> directories{ "./", "./" };
+
 std::string locateFile(const std::string& input)
 {
     return locateFile(input, directories);
@@ -92,6 +93,8 @@ void doInference(IExecutionContext& context, float* input, float* output, int ba
 	int inputIndex = engine.getBindingIndex(INPUT_BLOB_NAME),
 		outputIndex = engine.getBindingIndex(OUTPUT_BLOB_NAME);
 
+	// std::cout << "inputIndex = " << inputIndex << ", outputIndex = " << outputIndex << std::endl;
+
 	// create GPU buffers and a stream
 	CHECK(cudaMalloc(&buffers[inputIndex], batchSize * INPUT_H * INPUT_W * INPUT_C * sizeof(float)));
 	CHECK(cudaMalloc(&buffers[outputIndex], batchSize * OUTPUT_SIZE * sizeof(float)));
@@ -117,7 +120,7 @@ int main(int argc, char** argv)
 	// read test image file
 	float total = 0, ms;
 	#define MAX_LINE 1024
-	FILE *fpOpen=fopen("/media/andy/Data/DevWorkSpace/Projects/imageClassifier/data/test_abs.txt","r");
+	FILE *fpOpen=fopen("/home/andy/DevWorkSpace/imageClassifier/data/test_abs.txt","r");
 	if(fpOpen==NULL)
 	{
 		std::cout << ">>>> Open File Fail >>>> " << std::endl;
@@ -128,6 +131,7 @@ int main(int argc, char** argv)
 	char strLine[MAX_LINE];
 	int numberRun =0;
     int iCorrectNum = 0;
+
 	while(!feof(fpOpen))
 	{
 		// create a GIE model from the caffe model and serialize it to a stream
@@ -168,55 +172,18 @@ int main(int argc, char** argv)
 				}
 			}
 		}
-
-
-        // // DEBUG
-        // // print information
-        // for(int i=0;i<in_img->width * in_img->height * in_img->nChannels;i++){
-        //     if(i==0){
-        //         std::cout << hostInput[i];
-        //     }
-        //     else
-        //     {
-        //         if(i%10==0)
-        //         {
-        //             std::cout << "\n" << hostInput[i];
-        //         }
-        //         else
-        //         {
-        //             std::cout << ", " << hostInput[i];
-        //         }
-
-        //     }
-        // }
-        // exit(-1);
-
         // <<<<<<<< OpenCV 2
 
 
-		// parse the mean file and 	subtract it from the image
-		// ICaffeParser* parser = createCaffeParser();
-		// IBinaryProtoBlob* meanBlob = parser->parseBinaryProto(locateFile("mnist_mean.binaryproto", directories).c_str());
-		// parser->destroy();
-
-		// const float *meanData = reinterpret_cast<const float*>(meanBlob->getData());
-
-		// float data[INPUT_H*INPUT_W];
-		// for (int i = 0; i < INPUT_H*INPUT_W; i++)
-		// 	data[i] = float(fileData[i])-meanData[i];
-
-		// meanBlob->destroy();
-
-
-		// deserialize the engine
+		// // deserialize the engine
 		IRuntime* runtime = createInferRuntime(gLogger);
 		ICudaEngine* engine = runtime->deserializeCudaEngine(gieModelStream->data(), gieModelStream->size(), nullptr);
 		if (gieModelStream) gieModelStream->destroy();
-
 		IExecutionContext *context = engine->createExecutionContext();
 
 		// run inference
-		float outputs[OUTPUT_SIZE];
+		// float *outputs = (float*)malloc(OUTPUT_SIZE * sizeof(float));
+		float outputs[OUTPUT_SIZE] = {0.0};
 
 		auto t_start = std::chrono::high_resolution_clock::now();
 		doInference(*context, hostInput, outputs, 1);
@@ -224,15 +191,8 @@ int main(int argc, char** argv)
 		ms = std::chrono::duration<float, std::milli>(t_end - t_start).count();
         total += ms;
 
-
-
-		// destroy the engine
-		context->destroy();
-		engine->destroy();
-		runtime->destroy();
-
 		// print a histogram of the output distribution
-		std::cout << "------ Predict ------\n";
+		std::cout << "------ Predict ------" << std::endl;
 		float val{0.0f};
 		int maxIdx = 0;
 		for (int i = 0; i < OUTPUT_SIZE; ++i)
@@ -248,16 +208,6 @@ int main(int argc, char** argv)
 		}
 		int pre = maxIdx;
 
-		// int idx{0};
-		// for (unsigned int i = 0; i < OUTPUT_SIZE; i++)
-		// {
-		// 	val = std::max(val, outputs[i]);
-		// 	if (val == outputs[i]) idx = i;
-		// 	std::cout << i << ": " << std::string(int(std::floor(outputs[i] * 10 + 0.5f)), '*') << std::endl;
-		// }
-		// std::cout << std::endl;
-
-
 		token = strtok(NULL, " ");
 		char* label = token;
 		if(token == NULL){
@@ -270,10 +220,17 @@ int main(int argc, char** argv)
             iCorrectNum++;
         }
 
+		// free(outputs);
 		free(hostInput);
         cvReleaseImage(&cvtimg);
 		cvReleaseImage(&testImg);
 		cvReleaseImage(&in_img);
+
+		// destroy the engine
+		context->destroy();
+		engine->destroy();
+		runtime->destroy();
+
 		numberRun++;
 	}
 	fclose(fpOpen);
