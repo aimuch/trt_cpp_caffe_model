@@ -53,11 +53,10 @@ void caffeToGIEModel(const std::string& deployFile,				// name for caffe prototx
 	// parse the caffe model to populate the network, then set the outputs
 	INetworkDefinition* network = builder->createNetwork();
 	ICaffeParser* parser = createCaffeParser();
-	const IBlobNameToTensor* blobNameToTensor = parser->parse(locateFile(deployFile, directories).c_str(),
+	const IBlobNameToTensor* blobNameToTensor = parser->parse(	locateFile(deployFile, directories).c_str(),
 																locateFile(modelFile, directories).c_str(),
 																*network,
 																DataType::kFLOAT);
-
 	// specify which tensors are outputs
 	for (auto& s : outputs)
 		network->markOutput(*blobNameToTensor->find(s.c_str()));
@@ -120,24 +119,24 @@ int main(int argc, char** argv)
 	// read test image file
 	float total = 0, ms;
 	#define MAX_LINE 1024
-	FILE *fpOpen=fopen("/home/andy/DevWorkSpace/imageClassifier/data/test_abs.txt","r");
+	FILE *fpOpen=fopen("/media/andy/Data/DevWorkSpace/Projects/imageClassifier/data/test_abs.txt","r");
 	if(fpOpen==NULL)
 	{
-		std::cout << ">>>> Open File Fail >>>> " << std::endl;
+		std::cout << ">>>> Open Image List Txt Fail >>>> " << std::endl;
 		return -1;
 	}
-	printf(">>>>>>> Open File OK >>>>>>> \n");
+	printf(">>>>>>> Open Image List Txt OK >>>>>>> \n");
 	fflush(stdout);
 	char strLine[MAX_LINE];
 	int numberRun =0;
     int iCorrectNum = 0;
 
+	// create a GIE model from the caffe model and serialize it to a stream
+	IHostMemory *gieModelStream{nullptr};
+	caffeToGIEModel("deploy.prototxt", "final.caffemodel", std::vector < std::string > { OUTPUT_BLOB_NAME }, 1, gieModelStream);
+
 	while(!feof(fpOpen))
 	{
-		// create a GIE model from the caffe model and serialize it to a stream
-		IHostMemory *gieModelStream{nullptr};
-		caffeToGIEModel("deploy.prototxt", "final.caffemodel", std::vector < std::string > { OUTPUT_BLOB_NAME }, 1, gieModelStream);
-
 		fgets(strLine, MAX_LINE, fpOpen);
 		char *token = strtok(strLine, " ");
 		printf(">>>>>>> id: %d,openimg %s\n", numberRun, token);
@@ -153,7 +152,6 @@ int main(int argc, char** argv)
 
 		int _size = in_img->width * in_img->height * in_img->nChannels * sizeof(float);
 		float* hostInput = (float*)malloc(_size);
-		float tfOutput[5];
 
 
         // >>>>>>>> OpenCV 3
@@ -178,7 +176,6 @@ int main(int argc, char** argv)
 		// // deserialize the engine
 		IRuntime* runtime = createInferRuntime(gLogger);
 		ICudaEngine* engine = runtime->deserializeCudaEngine(gieModelStream->data(), gieModelStream->size(), nullptr);
-		if (gieModelStream) gieModelStream->destroy();
 		IExecutionContext *context = engine->createExecutionContext();
 
 		// run inference
@@ -193,7 +190,6 @@ int main(int argc, char** argv)
 
 		// print a histogram of the output distribution
 		std::cout << "------ Predict ------" << std::endl;
-		float val{0.0f};
 		int maxIdx = 0;
 		for (int i = 0; i < OUTPUT_SIZE; ++i)
 			if (outputs[i] > outputs[maxIdx])
@@ -232,6 +228,9 @@ int main(int argc, char** argv)
 		runtime->destroy();
 
 		numberRun++;
+	}
+	if (gieModelStream) {
+		gieModelStream->destroy();
 	}
 	fclose(fpOpen);
 	printf(">>>>>>> Prob = %f\n",iCorrectNum*1.0/numberRun);
