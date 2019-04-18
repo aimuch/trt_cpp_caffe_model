@@ -25,8 +25,8 @@ using namespace nvcaffeparser1;
 
 
 // stuff we know about the network and the caffe input/output blobs
-static const int INPUT_H = 128;
-static const int INPUT_W = 128;
+static const int INPUT_H = 256;
+static const int INPUT_W = 256;
 static const int INPUT_C = 3;
 static const int OUTPUT_SIZE = 5;
 static Logger gLogger;
@@ -147,7 +147,7 @@ int main(int argc, char** argv)
         IplImage *cvtimg = cvCreateImage(cvSize(testImg->width, testImg->height), IPL_DEPTH_8U, 3);
         cvCvtColor(testImg, cvtimg, CV_BGR2RGB);
 
-        IplImage *in_img = cvCreateImage(cvSize(128, 128), IPL_DEPTH_8U, 3);
+        IplImage *in_img = cvCreateImage(cvSize(INPUT_W, INPUT_H), IPL_DEPTH_8U, INPUT_C);
 		cvResize(cvtimg, in_img, CV_INTER_LINEAR);
 
 
