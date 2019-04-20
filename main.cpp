@@ -119,7 +119,7 @@ int main(int argc, char** argv)
 	// read test image file
 	float total = 0, ms;
 	#define MAX_LINE 1024
-	FILE *fpOpen=fopen("/media/andy/Data/DevWorkSpace/Projects/imageClassifier/data/test_abs.txt","r");
+	FILE *fpOpen=fopen("/home/andy/DevWorkSpace/imageClassifier/data/test_abs.txt","r");
 	if(fpOpen==NULL)
 	{
 		std::cout << ">>>> Open Image List Txt Fail >>>> " << std::endl;
@@ -134,6 +134,11 @@ int main(int argc, char** argv)
 	// create a GIE model from the caffe model and serialize it to a stream
 	IHostMemory *gieModelStream{nullptr};
 	caffeToGIEModel("deploy.prototxt", "final.caffemodel", std::vector < std::string > { OUTPUT_BLOB_NAME }, 1, gieModelStream);
+
+	// deserialize the engine
+	IRuntime* runtime = createInferRuntime(gLogger);
+	ICudaEngine* engine = runtime->deserializeCudaEngine(gieModelStream->data(), gieModelStream->size(), nullptr);
+	IExecutionContext *context = engine->createExecutionContext();
 
 	while(!feof(fpOpen))
 	{
@@ -174,9 +179,9 @@ int main(int argc, char** argv)
 
 
 		// // deserialize the engine
-		IRuntime* runtime = createInferRuntime(gLogger);
-		ICudaEngine* engine = runtime->deserializeCudaEngine(gieModelStream->data(), gieModelStream->size(), nullptr);
-		IExecutionContext *context = engine->createExecutionContext();
+		// IRuntime* runtime = createInferRuntime(gLogger);
+		// ICudaEngine* engine = runtime->deserializeCudaEngine(gieModelStream->data(), gieModelStream->size(), nullptr);
+		// IExecutionContext *context = engine->createExecutionContext();
 
 		// run inference
 		// float *outputs = (float*)malloc(OUTPUT_SIZE * sizeof(float));
@@ -222,19 +227,25 @@ int main(int argc, char** argv)
 		cvReleaseImage(&testImg);
 		cvReleaseImage(&in_img);
 
-		// destroy the engine
-		context->destroy();
-		engine->destroy();
-		runtime->destroy();
+		// // destroy the engine
+		// context->destroy();
+		// engine->destroy();
+		// runtime->destroy();
 
 		numberRun++;
 	}
-	if (gieModelStream) {
-		gieModelStream->destroy();
-	}
+
+	// close file
 	fclose(fpOpen);
 	printf(">>>>>>> Prob = %f\n",iCorrectNum*1.0/numberRun);
 
+	// destroy the engine
+	context->destroy();
+	engine->destroy();
+	runtime->destroy();
+	if (gieModelStream) {
+		gieModelStream->destroy();
+	}
 
     total /= numberRun;
     std::cout << "Average over " << numberRun << " runs is " << total << " ms." << std::endl;
